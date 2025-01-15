@@ -12,6 +12,19 @@ git apply -v "$PATCHES/public_headers.patch"
 
 [ "${PDFium_ENABLE_V8:-}" == "true" ] && git apply -v "$PATCHES/v8/pdfium.patch"
 
+#always apply build_config_patch, doesn't hurt the other distro
+pushd "${SOURCE}/build"
+git apply -v "$PATCHES/build_config_ppc64le.patch"
+popd
+
+#Get libclang-rt for powerpc64le
+pushd "${SOURCE}/third_party/llvm-build/Release+Asserts/lib/clang/20/lib/"
+wget https://ibm.box.com/shared/static/7ez5z7vu75c0u2dno5t3anszwd2wrgdv.gz -O clang-rt-20-ppc.tar.gz
+mkdir powerpc64le-unknown-linux-gnu
+tar -xf clang-rt-20-ppc.tar.gz -C powerpc64le-unknown-linux-gnu
+rm -rf clang-rt-20-ppc.tar.gz
+popd
+
 case "$OS" in
   android)
     git -C build apply -v "$PATCHES/android/build.patch"

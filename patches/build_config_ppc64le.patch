@@ -1,0 +1,194 @@
+diff --git a/config/clang/BUILD.gn b/config/clang/BUILD.gn
+index f27d52c..b97c066 100644
+--- a/config/clang/BUILD.gn
++++ b/config/clang/BUILD.gn
+@@ -174,6 +174,8 @@ template("clang_lib") {
+           _dir = "armv7-unknown-linux-gnueabihf"
+         } else if (current_cpu == "arm64") {
+           _dir = "aarch64-unknown-linux-gnu"
++        } else if (current_cpu == "ppc64le") {
++          _dir = "powerpc64le-unknown-linux-gnu"
+         } else {
+           assert(false)  # Unhandled cpu type
+         }
+diff --git a/config/compiler/BUILD.gn b/config/compiler/BUILD.gn
+index 8810926..8d53365 100644
+--- a/config/compiler/BUILD.gn
++++ b/config/compiler/BUILD.gn
+@@ -1259,6 +1259,12 @@ config("compiler_cpu_abi") {
+         cflags += [ "--target=aarch64-linux-gnu" ]
+         ldflags += [ "--target=aarch64-linux-gnu" ]
+       }
++    } else if (current_cpu == "ppc64le") {
++      if (is_clang && !is_android && !is_nacl && !is_fuchsia &&
++          !is_chromeos_device) {
++        cflags += [ "--target=powerpc64le-linux-gnu" ]
++        ldflags += [ "--target=powerpc64le-linux-gnu" ]
++      }
+     } else if (current_cpu == "mipsel" && !is_nacl) {
+       ldflags += [ "-Wl,--hash-style=sysv" ]
+       if (custom_toolchain == "") {
+diff --git a/config/siso/clang_linux.star b/config/siso/clang_linux.star
+index 42825f1..e0addaa 100644
+--- a/config/siso/clang_linux.star
++++ b/config/siso/clang_linux.star
+@@ -32,6 +32,15 @@ def __filegroups(ctx):
+             "type": "glob",
+             "includes": ["*.h", "crtbegin.o"],
+         },
++        "build/linux/debian_bullseye_ppc64el-sysroot/usr/include:include": {
++            "type": "glob",
++            "includes": ["*"],
++            # need bits/stab.def, c++/*
++        },
++        "build/linux/debian_bullseye_ppc64el-sysroot/usr/lib:headers": {
++            "type": "glob",
++            "includes": ["*.h", "crtbegin.o"],
++        },
+         "build/linux/debian_bullseye_i386-sysroot/usr/include:include": {
+             "type": "glob",
+             "includes": ["*"],
+@@ -137,6 +146,10 @@ def __step_config(ctx, step_config):
+             "build/linux/debian_bullseye_arm64-sysroot/usr/include:include",
+             "build/linux/debian_bullseye_arm64-sysroot/usr/lib:headers",
+         ],
++        "build/linux/debian_bullseye_ppc64el-sysroot:headers": [
++            "build/linux/debian_bullseye_ppc64el-sysroot/usr/include:include",
++            "build/linux/debian_bullseye_ppc64el-sysroot/usr/lib:headers",
++        ],
+         "build/linux/debian_bullseye_i386-sysroot:headers": [
+             "build/linux/debian_bullseye_i386-sysroot/usr/include:include",
+             "build/linux/debian_bullseye_i386-sysroot/usr/lib:headers",
+diff --git a/config/sysroot.gni b/config/sysroot.gni
+index 47fe4cb..1c00ad3 100644
+--- a/config/sysroot.gni
++++ b/config/sysroot.gni
+@@ -21,7 +21,7 @@ declare_args() {
+   # is empty, default sysroot is calculated.
+   use_sysroot =
+       current_cpu == "x86" || current_cpu == "x64" || current_cpu == "arm" ||
+-      current_cpu == "arm64" || current_cpu == "mipsel" ||
++      current_cpu == "arm64" || current_cpu == "ppc64le" || current_cpu == "mipsel" ||
+       current_cpu == "mips64el" || (current_cpu == "riscv64" && is_android)
+ }
+ 
+@@ -49,6 +49,8 @@ if (sysroot == "") {
+       sysroot = "$target_sysroot_dir/debian_bullseye_armhf-sysroot"
+     } else if (current_cpu == "arm64") {
+       sysroot = "$target_sysroot_dir/debian_bullseye_arm64-sysroot"
++    } else if (current_cpu == "ppc64le") {
++      sysroot = "$target_sysroot_dir/debian_bullseye_ppc64el-sysroot"
+     } else {
+       assert(false, "No linux sysroot for cpu: $target_cpu")
+     }
+diff --git a/detect_host_arch.py b/detect_host_arch.py
+index c9d47e9..a0655f1 100755
+--- a/detect_host_arch.py
++++ b/detect_host_arch.py
+@@ -28,6 +28,8 @@ def HostArch():
+     host_arch = 'mips64'
+   elif host_arch.startswith('mips'):
+     host_arch = 'mips'
++  elif host_arch.startswith('ppc64le'):
++    host_arch = 'ppc64le'
+   elif host_arch.startswith('ppc'):
+     host_arch = 'ppc'
+   elif host_arch.startswith('s390'):
+diff --git a/install-build-deps.py b/install-build-deps.py
+index 5114305..ec37fcb 100755
+--- a/install-build-deps.py
++++ b/install-build-deps.py
+@@ -311,6 +311,8 @@ def dev_list():
+     packages.append("binutils-mipsel-linux-gnu")
+   if package_exists("binutils-mips64el-linux-gnuabi64"):
+     packages.append("binutils-mips64el-linux-gnuabi64")
++  if package_exists("binutils-powerpc64le-linux-gnu"):
++    packages.append("binutils-powerpc64le-linux-gnu")
+ 
+   # 64-bit systems need a minimum set of 32-bit compat packages for the
+   # pre-built NaCl binaries.
+diff --git a/linux/sysroot_scripts/install-sysroot.py b/linux/sysroot_scripts/install-sysroot.py
+index abd5813..03c9daf 100755
+--- a/linux/sysroot_scripts/install-sysroot.py
++++ b/linux/sysroot_scripts/install-sysroot.py
+@@ -36,7 +36,7 @@ from urllib.request import urlopen
+ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+ SRC_DIR = os.path.dirname(os.path.dirname(os.path.dirname(SCRIPT_DIR)))
+ 
+-VALID_ARCHS = ("amd64", "i386", "armhf", "arm64", "mipsel", "mips64el")
++VALID_ARCHS = ("amd64", "i386", "armhf", "arm64", "mipsel", "mips64el", "ppc64el")
+ 
+ ARCH_TRANSLATIONS = {
+     "x64": "amd64",
+@@ -44,6 +44,7 @@ ARCH_TRANSLATIONS = {
+     "arm": "armhf",
+     "mips": "mipsel",
+     "mips64": "mips64el",
++    "ppc64le": "ppc64el"
+ }
+ 
+ DEFAULT_SYSROOTS_PATH = os.path.join(os.path.relpath(SCRIPT_DIR, SRC_DIR),
+@@ -128,6 +129,8 @@ def InstallSysroot(sysroots_json_path, target_platform, target_arch):
+     sysroot = os.path.join(linux_dir, sysroot_dict["SysrootDir"])
+ 
+     url = "%s/%s" % (url_prefix, tarball_sha256sum)
++    if target_arch == 'ppc64el':
++        url = url_prefix
+ 
+     stamp = os.path.join(sysroot, ".stamp")
+     # This file is created by first class GCS deps. If this file exists,
+diff --git a/linux/sysroot_scripts/sysroots.json b/linux/sysroot_scripts/sysroots.json
+index f146ea6..b130400 100644
+--- a/linux/sysroot_scripts/sysroots.json
++++ b/linux/sysroot_scripts/sysroots.json
+@@ -34,5 +34,11 @@
+         "SysrootDir": "debian_bullseye_mipsel-sysroot",
+         "Tarball": "debian_bullseye_mipsel_sysroot.tar.xz",
+         "URL": "https://commondatastorage.googleapis.com/chrome-linux-sysroot"
++    },
++    "bullseye_ppc64el": {
++        "Sha256Sum": "5d0e56be2f5e894656c77d468777ce105382ec6526a80c901f6c2732dd089a47",
++        "SysrootDir": "debian_bullseye_ppc64el-sysroot",
++        "Tarball": "debian_bullseye_ppc64el_sysroot.tar.xz",
++        "URL": "https://ibm.box.com/shared/static/n9n2zcuybktrgbtph6q6bsif02pkpfak.xz"
+     }
+ }
+diff --git a/toolchain/linux/BUILD.gn b/toolchain/linux/BUILD.gn
+index a6e20a0..bc7254f 100644
+--- a/toolchain/linux/BUILD.gn
++++ b/toolchain/linux/BUILD.gn
+@@ -72,6 +72,34 @@ gcc_toolchain("arm") {
+   }
+ }
+ 
++clang_toolchain("clang_ppc64le") {
++  toolchain_args = {
++    current_cpu = "ppc64le"
++    current_os = "linux"
++  }
++}
++
++gcc_toolchain("ppc64le") {
++  toolprefix = "powerpc64le-linux-gnu-"
++
++  cc = "${toolprefix}gcc"
++  cxx = "${toolprefix}g++"
++
++  ar = "${toolprefix}ar"
++  ld = cxx
++  readelf = "${toolprefix}readelf"
++  nm = "${toolprefix}nm"
++
++  toolchain_args = {
++    current_cpu = "ppc64le"
++    current_os = "linux"
++
++    # remote execution does not support gcc.
++    use_remoteexec = false
++    is_clang = false
++  }
++}
++
+ clang_toolchain("clang_x86") {
+   # Output linker map files for binary size analysis.
+   enable_linker_map = true

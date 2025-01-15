@@ -80,6 +80,10 @@ case "$TARGET_OS" in
           sudo apt-get install -y libc6-i386 gcc-10-multilib g++-10-aarch64-linux-gnu gcc-10-aarch64-linux-gnu
           ;;
 
+        ppc64le)
+          sudo apt-get install -y libc6-i386 gcc-10-multilib g++-10-powerpc64le-linux-gnu gcc-10-powerpc64le-linux-gnu
+          ;;
+
         x86)
           sudo apt-get install -y g++-multilib
           ;;
