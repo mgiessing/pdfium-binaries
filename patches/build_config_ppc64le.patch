@@ -147,7 +147,7 @@ index f146ea6..b130400 100644
          "URL": "https://commondatastorage.googleapis.com/chrome-linux-sysroot"
 +    },
 +    "bullseye_ppc64el": {
-+        "Sha256Sum": "5d0e56be2f5e894656c77d468777ce105382ec6526a80c901f6c2732dd089a47",
++        "Sha256Sum": "d2e359f5460d2a70fb938c91139b8022fe4d85475567baaa7864eb39073f4c5a",
 +        "SysrootDir": "debian_bullseye_ppc64el-sysroot",
 +        "Tarball": "debian_bullseye_ppc64el_sysroot.tar.xz",
 +        "URL": "https://ibm.box.com/shared/static/n9n2zcuybktrgbtph6q6bsif02pkpfak.xz"
