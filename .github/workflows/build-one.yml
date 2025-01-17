@@ -29,6 +29,7 @@ on:
           - arm64
           - x64
           - x86
+          - ppc64le
           - wasm
       target_environment:
         description: Target environment
