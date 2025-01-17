@@ -312,7 +312,7 @@ jobs:
       target_cpu: arm64
       enable_v8: true
 
-  linux_arm64:
+  linux_ppc64le:
     name: Linux ppc64le
     uses: ./.github/workflows/build.yml
     with:
